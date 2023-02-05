@@ -9,6 +9,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import javafx.application.Application;
 import static javafx.application.Application.launch;
 import javafx.scene.Scene;
@@ -16,10 +17,12 @@ import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javax.swing.JOptionPane;
 import net.sf.jasperreports.engine.JRException;
+import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperReport;
@@ -33,30 +36,30 @@ import net.sf.jasperreports.view.JasperViewer;
 public class AppInformes extends Application {
 
     public static Connection conexion = null;
+    public static int ID = 0;
 
     @Override
     public void start(Stage primaryStage) throws ClassNotFoundException, InstantiationException, IllegalAccessException, SQLException {
-        //establecemos la conexión con la BD
         conectaBD();
 
-        //Creamos la escena
         Menu informes = new Menu("Informes");
         Menu ayuda = new Menu("Ayuda");
         Menu salir = new Menu("Salir");
 
-        // create menuitems
         MenuItem m1 = new MenuItem("Listado Facturas");
         MenuItem m2 = new MenuItem("Ventas Totales");
         MenuItem m3 = new MenuItem("Facturas por Cliente");
         MenuItem m4 = new MenuItem("Subinforme Listado Facturas");
 
-        // add menu items to menu
         informes.getItems().add(m1);
         informes.getItems().add(m2);
         informes.getItems().add(m3);
         informes.getItems().add(m4);
 
-        //setOnActions
+        TextInputDialog textoID = new TextInputDialog();
+        textoID.setHeaderText("Introduce el ID del cliente.");
+        TextField id = textoID.getEditor();
+
         m1.setOnAction(e -> {
             generaInformeFacturas();
         });
@@ -64,25 +67,26 @@ public class AppInformes extends Application {
             generaInformeVentasTotales();
         });
         m3.setOnAction(e -> {
-            System.out.println("Menu Item 3 Selected");
+            Optional<String> action1 = textoID.showAndWait();
+            if (action1.isPresent()) {
+                if (id.getText() != null) {
+                    generaFacturaCliente(id.getText());
+                } else {
+                    System.out.println("No se pudo crear el Jasper Report");
+                }
+            }
         });
         m4.setOnAction(e -> {
-            System.out.println("Menu Item 4 Selected");
+            generaFacturasSubinforme();
         });
 
-        // create a menubar
         MenuBar mb = new MenuBar();
-
-        // add menu to menubar
         mb.getMenus().addAll(informes, ayuda, salir);
 
-        // create a VBox
         VBox vb = new VBox(mb);
 
-        // create a scene
         Scene sc = new Scene(vb, 815, 559);
         sc.getStylesheets().addAll(this.getClass().getResource("estilo.css").toExternalForm());
-        // set the scene
         primaryStage.setScene(sc);
 
         primaryStage.show();
@@ -140,12 +144,52 @@ public class AppInformes extends Application {
             JOptionPane.showMessageDialog(null, ex);
         }
     }
+
     public void generaInformeVentasTotales() {
 
         try {
             JasperReport jr = (JasperReport) JRLoader.loadObject(AppInformes.class.getResource("Ventas_totales.jasper"));
             //Map de parámetros
             Map parametros = new HashMap();
+
+            JasperPrint jp = (JasperPrint) JasperFillManager.fillReport(jr, parametros, conexion);
+            JasperViewer.viewReport(jp, false);
+        } catch (JRException ex) {
+
+            System.out.println("Error al recuperar el jasper");
+            JOptionPane.showMessageDialog(null, ex);
+        }
+    }
+
+    public void generaFacturaCliente(String id) {
+
+        try {
+            JasperReport jr = (JasperReport) JRLoader.loadObject(AppInformes.class.getResource("Factura_Cliente.jasper"));
+            //Map de parámetros
+            HashMap<String, Object> parametros = new HashMap<String, Object>();
+            int idAddress = Integer.parseInt(id);
+            parametros.put("ADDRESSID", idAddress);
+
+            JasperPrint jp = (JasperPrint) JasperFillManager.fillReport(jr, parametros, conexion);
+            JasperViewer.viewReport(jp, false);
+        } catch (JRException ex) {
+
+            System.out.println("Error al recuperar el jasper");
+            JOptionPane.showMessageDialog(null, ex);
+        }
+    }
+
+    public void generaFacturasSubinforme() {
+
+        try {
+            JasperReport sub = (JasperReport) JRLoader.loadObject(AppInformes.class.getResource("FacturaSub.jasper"));
+            JasperReport jr = (JasperReport) JRLoader.loadObject(AppInformes.class.getResource("Factura_Subinforme.jasper"));
+//            JasperReport jr = JasperCompileManager.compileReport("Factura_Subinforme.jasper");
+//            JasperReport sub = JasperCompileManager.compileReport("FacturaSub.jasper");
+
+            //Map de parámetros
+            HashMap<String, Object> parametros = new HashMap<String, Object>();
+            parametros.put("subReportParameter", sub);
 
             JasperPrint jp = (JasperPrint) JasperFillManager.fillReport(jr, parametros, conexion);
             JasperViewer.viewReport(jp, false);
